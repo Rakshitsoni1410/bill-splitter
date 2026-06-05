@@ -14,7 +14,8 @@ public class Group {
     private Long id;
 
     private String name;
-
+    private Double budgetLimit;
+    private Double totalSpent = 0.0;
     @ManyToOne
     @JoinColumn(name = "created_by")
     private User createdBy;
