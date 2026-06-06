@@ -1,10 +1,19 @@
 package com.billsplitter.bill_splitter;
 
+import java.util.List;
+
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
+
 import lombok.Data;
-import java.util.List;
 
 @RestController
 @RequestMapping("/api/expenses")
@@ -31,17 +40,17 @@ public class ExpenseController {
         if (paidBy == null)
             return ResponseEntity.badRequest().body("User not found!");
         if (group.getBudgetLimit() != null) {
-            double newTotal = group.getTotalSpent() + request.getAmount();
+            double currentSpent = group.getTotalSpent() != null ? group.getTotalSpent() : 0.0;
+            double newTotal = currentSpent + request.getAmount();
             if (newTotal > group.getBudgetLimit()) {
-                double remaining = group.getBudgetLimit() - group.getTotalSpent();
+                double remaining = group.getBudgetLimit() - currentSpent;
                 return ResponseEntity.badRequest().body(
                         "Budget exceeded! Remaining budget: ₹" + remaining +
                                 ". Request a budget increase from the group creator.");
             }
-            group.setTotalSpent(group.getTotalSpent() + request.getAmount());
+            group.setTotalSpent(currentSpent + request.getAmount());
             groupRepository.save(group);
         }
-
         Expense expense = new Expense();
         expense.setTitle(request.getTitle());
         expense.setAmount(request.getAmount());
