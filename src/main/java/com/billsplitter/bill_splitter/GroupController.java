@@ -1,12 +1,18 @@
 package com.billsplitter.bill_splitter;
 
+import java.util.List;
+
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
 
 import lombok.Data;
-
-import java.util.List;
 
 @RestController
 @RequestMapping("/api/groups")
@@ -18,10 +24,12 @@ public class GroupController {
     @Autowired
     private UserRepository userRepository;
 
+    @Autowired
+    private ActivityService activityService;
+
     @PostMapping("/create")
     public ResponseEntity<?> createGroup(@RequestBody GroupRequest request) {
-        User creator = userRepository.findById(request.getCreatedById())
-                .orElse(null);
+        User creator = userRepository.findById(request.getCreatedById()).orElse(null);
         if (creator == null)
             return ResponseEntity.badRequest().body("User not found!");
 
@@ -33,8 +41,13 @@ public class GroupController {
         group.setName(request.getName());
         group.setCreatedBy(creator);
         group.setMembers(members);
+        groupRepository.save(group);
 
-        return ResponseEntity.ok(groupRepository.save(group));
+        // Log activity
+        activityService.log(group, creator, Activity.Type.GROUP_CREATED,
+                creator.getName() + " created the group \"" + group.getName() + "\" 🎉");
+
+        return ResponseEntity.ok(group);
     }
 
     @GetMapping("/user/{userId}")
@@ -56,12 +69,13 @@ public class GroupController {
         if (!group.getMembers().contains(user)) {
             group.getMembers().add(user);
         }
-        return ResponseEntity.ok(groupRepository.save(group));
-    }
+        groupRepository.save(group);
 
-    @Data
-    static class AddMemberRequest {
-        private Long userId;
+        // Log activity
+        activityService.log(group, user, Activity.Type.MEMBER_JOINED,
+                user.getName() + " joined the group 👋");
+
+        return ResponseEntity.ok(group);
     }
 
     @PutMapping("/{id}/budget")
@@ -72,7 +86,26 @@ public class GroupController {
             return ResponseEntity.badRequest().body("Group not found!");
 
         group.setBudgetLimit(request.getBudgetLimit());
-        return ResponseEntity.ok(groupRepository.save(group));
+        groupRepository.save(group);
+
+        // Log activity
+        activityService.log(group, group.getCreatedBy(), Activity.Type.EXPENSE_ADDED,
+                "Budget set to ₹" + request.getBudgetLimit() + " 💰");
+
+        return ResponseEntity.ok(group);
+    }
+
+    @GetMapping("/{id}")
+    public ResponseEntity<?> getGroupById(@PathVariable Long id) {
+        Group group = groupRepository.findById(id).orElse(null);
+        if (group == null)
+            return ResponseEntity.badRequest().body("Group not found!");
+        return ResponseEntity.ok(group);
+    }
+
+    @Data
+    static class AddMemberRequest {
+        private Long userId;
     }
 
     @Data

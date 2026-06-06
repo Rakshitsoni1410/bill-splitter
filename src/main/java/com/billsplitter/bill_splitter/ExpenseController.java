@@ -28,17 +28,19 @@ public class ExpenseController {
     @Autowired
     private UserRepository userRepository;
 
+    @Autowired
+    private ActivityService activityService;
+
     @PostMapping("/add")
     public ResponseEntity<?> addExpense(@RequestBody ExpenseRequest request) {
-        Group group = groupRepository.findById(request.getGroupId())
-                .orElse(null);
+        Group group = groupRepository.findById(request.getGroupId()).orElse(null);
         if (group == null)
             return ResponseEntity.badRequest().body("Group not found!");
 
-        User paidBy = userRepository.findById(request.getPaidById())
-                .orElse(null);
+        User paidBy = userRepository.findById(request.getPaidById()).orElse(null);
         if (paidBy == null)
             return ResponseEntity.badRequest().body("User not found!");
+
         if (group.getBudgetLimit() != null) {
             double currentSpent = group.getTotalSpent() != null ? group.getTotalSpent() : 0.0;
             double newTotal = currentSpent + request.getAmount();
@@ -51,6 +53,7 @@ public class ExpenseController {
             group.setTotalSpent(currentSpent + request.getAmount());
             groupRepository.save(group);
         }
+
         Expense expense = new Expense();
         expense.setTitle(request.getTitle());
         expense.setAmount(request.getAmount());
@@ -58,8 +61,13 @@ public class ExpenseController {
         expense.setSplitType(request.getSplitType());
         expense.setPaidBy(paidBy);
         expense.setGroup(group);
+        expenseRepository.save(expense);
 
-        return ResponseEntity.ok(expenseRepository.save(expense));
+        // Log activity
+        activityService.log(group, paidBy, Activity.Type.EXPENSE_ADDED,
+                paidBy.getName() + " added \"" + expense.getTitle() + "\" — ₹" + expense.getAmount());
+
+        return ResponseEntity.ok(expense);
     }
 
     @GetMapping("/group/{groupId}")
@@ -75,6 +83,15 @@ public class ExpenseController {
 
     @DeleteMapping("/{id}")
     public ResponseEntity<?> deleteExpense(@PathVariable Long id) {
+        Expense expense = expenseRepository.findById(id).orElse(null);
+        if (expense == null)
+            return ResponseEntity.badRequest().body("Expense not found!");
+
+        // Log activity before deleting
+        activityService.log(expense.getGroup(), expense.getPaidBy(),
+                Activity.Type.EXPENSE_DELETED,
+                expense.getPaidBy().getName() + " deleted \"" + expense.getTitle() + "\"");
+
         expenseRepository.deleteById(id);
         return ResponseEntity.ok("Expense deleted!");
     }
@@ -88,5 +105,4 @@ public class ExpenseController {
         private Long groupId;
         private Long paidById;
     }
-
 }

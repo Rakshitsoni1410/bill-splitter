@@ -19,6 +19,22 @@ const CATEGORY_ICONS = {
   ENTERTAINMENT: "🎬",
   OTHER: "📦",
 };
+const ACTIVITY_ICONS = {
+  EXPENSE_ADDED: "💸",
+  MEMBER_JOINED: "👋",
+  PAYMENT_MADE: "✅",
+  GROUP_CREATED: "🎉",
+  EXPENSE_DELETED: "🗑️",
+  SETTLED: "✅",
+};
+const ACTIVITY_COLORS = {
+  EXPENSE_ADDED: "#6c63ff",
+  MEMBER_JOINED: "#00d4aa",
+  PAYMENT_MADE: "#00d4aa",
+  GROUP_CREATED: "#ffd166",
+  EXPENSE_DELETED: "#ff6584",
+  SETTLED: "#00d4aa",
+};
 
 export default function GroupPage() {
   const { id } = useParams();
@@ -28,6 +44,7 @@ export default function GroupPage() {
   const [group, setGroup] = useState(null);
   const [expenses, setExpenses] = useState([]);
   const [balances, setBalances] = useState({});
+  const [activities, setActivities] = useState([]);
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState("expenses");
   const [showExpenseModal, setShowExpenseModal] = useState(false);
@@ -47,14 +64,16 @@ export default function GroupPage() {
 
   const fetchAll = async () => {
     try {
-      const [groupRes, expRes, balRes] = await Promise.all([
+      const [groupRes, expRes, balRes, actRes] = await Promise.all([
         API.get(`/groups/${id}`),
         API.get(`/expenses/group/${id}`),
         API.get(`/splits/balances/${id}`),
+        API.get(`/activities/group/${id}`),
       ]);
       setGroup(groupRes.data);
       setExpenses(expRes.data);
       setBalances(balRes.data);
+      setActivities(actRes.data);
     } catch {
       toast.error("Failed to load group");
     } finally {
@@ -72,13 +91,11 @@ export default function GroupPage() {
         groupId: parseInt(id),
         paidById: user.userId,
       });
-
       await API.post("/splits/create", {
         expenseId: res.data.id,
         percentages: null,
         exactAmounts: null,
       });
-
       toast.success("Expense added & split! 🎉");
       setShowExpenseModal(false);
       setExpenseForm({
@@ -105,7 +122,6 @@ export default function GroupPage() {
         toast.error("User not found!");
         return;
       }
-
       await API.post(`/groups/${id}/members`, { userId: found.id });
       toast.success("Member added! 🎉");
       setShowMemberModal(false);
@@ -144,6 +160,7 @@ export default function GroupPage() {
     );
 
   const myBalance = balances[user.userId] || 0;
+  const TABS = ["expenses", "members", "balances", "activity"];
 
   return (
     <div className="page">
@@ -163,7 +180,6 @@ export default function GroupPage() {
         >
           ← Back to Dashboard
         </button>
-
         <div className="flex-between">
           <div>
             <h1 style={{ fontSize: "1.8rem", fontWeight: 800 }}>
@@ -277,26 +293,32 @@ export default function GroupPage() {
           padding: 4,
           borderRadius: 10,
           width: "fit-content",
+          flexWrap: "wrap",
         }}
       >
-        {["expenses", "members", "balances"].map((t) => (
+        {TABS.map((t) => (
           <button
             key={t}
             onClick={() => setTab(t)}
             style={{
-              padding: "8px 20px",
+              padding: "8px 16px",
               borderRadius: 8,
               border: "none",
               background: tab === t ? "var(--accent)" : "transparent",
               color: tab === t ? "#fff" : "var(--muted)",
               cursor: "pointer",
               fontWeight: 500,
-              fontSize: "0.9rem",
-              textTransform: "capitalize",
+              fontSize: "0.85rem",
               transition: "all 0.2s",
             }}
           >
-            {t}
+            {t === "activity"
+              ? "📋 Activity"
+              : t === "expenses"
+                ? "🧾 Expenses"
+                : t === "members"
+                  ? "👥 Members"
+                  : "⚖️ Balances"}
           </button>
         ))}
       </div>
@@ -516,7 +538,7 @@ export default function GroupPage() {
                           display: "flex",
                           alignItems: "center",
                           justifyContent: "center",
-                          color: "#fff",
+                          color: "var(--text)",
                           fontWeight: 700,
                         }}
                       >
@@ -547,6 +569,85 @@ export default function GroupPage() {
                 </div>
               );
             })
+          )}
+        </div>
+      )}
+
+      {/* Activity Tab */}
+      {tab === "activity" && (
+        <div
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            gap: 12,
+            animation: "fadeIn 0.3s ease",
+          }}
+        >
+          {activities.length === 0 ? (
+            <div
+              style={{
+                textAlign: "center",
+                padding: 60,
+                background: "var(--card)",
+                borderRadius: "var(--radius)",
+                border: "1px dashed var(--border)",
+              }}
+            >
+              <div style={{ fontSize: "3rem", marginBottom: 16 }}>📋</div>
+              <h3 style={{ marginBottom: 8 }}>No activity yet</h3>
+              <p className="text-muted">
+                Activities will appear here as you use the group!
+              </p>
+            </div>
+          ) : (
+            activities.map((act, i) => (
+              <div
+                key={act.id}
+                className="card"
+                style={{
+                  padding: "14px 20px",
+                  animation: `slideIn ${0.1 + i * 0.05}s ease`,
+                  borderLeft: `3px solid ${ACTIVITY_COLORS[act.type] || "var(--accent)"}`,
+                }}
+              >
+                <div className="flex gap-16">
+                  <div
+                    style={{
+                      width: 40,
+                      height: 40,
+                      borderRadius: 10,
+                      flexShrink: 0,
+                      background: `${ACTIVITY_COLORS[act.type] || "#6c63ff"}22`,
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      fontSize: "1.1rem",
+                    }}
+                  >
+                    {ACTIVITY_ICONS[act.type] || "📌"}
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <p
+                      style={{
+                        fontWeight: 500,
+                        fontSize: "0.95rem",
+                        marginBottom: 4,
+                      }}
+                    >
+                      {act.message}
+                    </p>
+                    <p className="text-muted" style={{ fontSize: "0.8rem" }}>
+                      {new Date(act.createdAt).toLocaleString("en-IN", {
+                        day: "numeric",
+                        month: "short",
+                        hour: "2-digit",
+                        minute: "2-digit",
+                      })}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            ))
           )}
         </div>
       )}
